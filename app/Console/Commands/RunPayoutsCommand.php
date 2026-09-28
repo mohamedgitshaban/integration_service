@@ -2,34 +2,51 @@
 
 namespace App\Console\Commands;
 
-use App\Models\PayoutBatch;
+use App\Enums\PayoutRunStatus;
+use App\Jobs\SendPayoutJob;
+use App\Models\Payout;
+use App\Models\PayoutRun;
 use App\Services\PayoutService;
+use Illuminate\Console\Attributes\Description;
+use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Cache;
 
+#[Signature('payouts:run')]
+#[Description('Reserve every instructor\'s outstanding balance and queue the transfers.')]
 class RunPayoutsCommand extends Command
 {
-    protected $signature = 'payouts:run';
-    protected $description = 'Run scheduled instructor payouts safely and idempotently.';
-
-    public function handle(PayoutService $payoutService): int
+    /**
+     * The cache lock only avoids wasted work when runs overlap. Correctness
+     * does not depend on it: reservation happens under each instructor's
+     * balance row lock, so a concurrent run finds nothing left to reserve.
+     */
+    public function handle(PayoutService $payouts): int
     {
-        $this->info('Starting payout batch execution...');
+        $lock = Cache::lock('payouts:run', 3600);
 
-        $batch = PayoutBatch::create([
-            'reference_number' => 'BATCH-' . strtoupper(Str::random(10)),
-            'total_amount' => 0.00, // Can aggregate total if needed
-            'status' => 'processing',
-        ]);
+        if (! $lock->get()) {
+            $this->warn('Another payout run is in progress; nothing to do.');
+
+            return self::SUCCESS;
+        }
 
         try {
-            $payoutService->processBatch($batch);
-            $this->info('Payout batch completed successfully.');
-            return self::SUCCESS;
-        } catch (\Throwable $e) {
-            $this->error('Payout batch encountered an error: ' . $e->getMessage());
-            $batch->update(['status' => 'failed']);
-            return self::FAILURE;
+            $run = PayoutRun::create(['status' => PayoutRunStatus::Running, 'started_at' => now()]);
+
+            $payouts->reservePayouts($run, function (Payout $payout) use ($run) {
+                $run->increment('payouts_count');
+                $run->increment('total_minor', $payout->amount_minor);
+                SendPayoutJob::dispatch($payout->id);
+            });
+
+            $run->update(['status' => PayoutRunStatus::Completed, 'finished_at' => now()]);
+        } finally {
+            $lock->release();
         }
+
+        $this->info(sprintf('Payout run %d queued %d payout(s) totalling %s piastres.', $run->id, $run->payouts_count, number_format($run->total_minor)));
+
+        return self::SUCCESS;
     }
 }

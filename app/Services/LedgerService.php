@@ -56,6 +56,23 @@ class LedgerService
     }
 
     /**
+     * Move a confirmed payout from reserved to paid. The ledger already holds
+     * the payout debit (written at reservation), so only the projection's
+     * split between in-flight and confirmed money changes.
+     */
+    public function markReservedAsPaid(int $instructorId, int $amountMinor): void
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('Ledger writes must run inside a database transaction.');
+        }
+
+        $balance = $this->lockBalance($instructorId);
+        $balance->reserved_minor -= $amountMinor;
+        $balance->paid_minor += $amountMinor;
+        $balance->save();
+    }
+
+    /**
      * Lock (creating if needed) the instructor's balance row. Callers touching
      * several instructors must lock them in ascending id order to avoid
      * deadlocks between concurrent transactions.

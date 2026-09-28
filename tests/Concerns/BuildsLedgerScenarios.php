@@ -3,6 +3,7 @@
 namespace Tests\Concerns;
 
 use App\Enums\AllocationKind;
+use App\Enums\LedgerEntryType;
 use App\Enums\SubscriptionPlan;
 use App\Models\Course;
 use App\Models\InstructorBalance;
@@ -10,7 +11,10 @@ use App\Models\LedgerEntry;
 use App\Models\RevenueAllocation;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\LedgerService;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 trait BuildsLedgerScenarios
 {
@@ -30,6 +34,21 @@ trait BuildsLedgerScenarios
         }
 
         return $subscription;
+    }
+
+    /**
+     * Credit an instructor directly, for tests that are about paying out
+     * rather than about how the money was earned.
+     */
+    protected function earn(User $instructor, int $amountMinor): void
+    {
+        DB::transaction(fn () => app(LedgerService::class)->record(
+            $instructor->id,
+            LedgerEntryType::Earning,
+            $amountMinor,
+            'test-earning:'.Str::uuid(),
+            CarbonImmutable::today(),
+        ));
     }
 
     protected function balance(User $instructor): InstructorBalance
