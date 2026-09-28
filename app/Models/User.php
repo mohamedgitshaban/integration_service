@@ -41,11 +41,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Earnings accrued by this instructor.
+     * Ledger movements (earnings, clawbacks, payouts) for this instructor.
      */
-    public function earnings(): HasMany
+    public function ledgerEntries(): HasMany
     {
-        return $this->hasMany(InstructorEarning::class, 'instructor_id');
+        return $this->hasMany(LedgerEntry::class, 'instructor_id');
     }
 
     /**
@@ -57,10 +57,10 @@ class User extends Authenticatable
     }
 
     /**
-     * Payout transactions sent to this instructor.
+     * Payouts sent to this instructor.
      */
-    public function payoutTransactions(): HasMany
+    public function payouts(): HasMany
     {
-        return $this->hasMany(PayoutTransaction::class, 'instructor_id');
+        return $this->hasMany(Payout::class, 'instructor_id');
     }
 }

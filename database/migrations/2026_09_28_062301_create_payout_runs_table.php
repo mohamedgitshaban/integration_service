@@ -11,15 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('payout_batches', function (Blueprint $table) {
+        Schema::create('payout_runs', function (Blueprint $table) {
             $table->id();
-            $table->string('reference_number')->unique();
-            $table->decimal('total_amount', 12, 2);
-            $table->string('status')->default('pending'); // pending, processing, completed, failed
-            $table->timestamp('processed_at')->nullable();
+            $table->string('status')->default('running');
+            $table->unsignedInteger('payouts_count')->default(0);
+            $table->unsignedBigInteger('total_minor')->default(0);
+            $table->timestamp('started_at');
+            $table->timestamp('finished_at')->nullable();
             $table->timestamps();
         });
-
     }
 
     /**
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('payout_batches');
+        Schema::dropIfExists('payout_runs');
     }
 };
