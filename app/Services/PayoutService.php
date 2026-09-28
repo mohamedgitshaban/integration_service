@@ -5,15 +5,18 @@ namespace App\Services;
 use App\Enums\LedgerEntryType;
 use App\Enums\PayoutStatus;
 use App\Enums\TransferStatus;
+use App\Jobs\SendPayoutJob;
 use App\Models\InstructorBalance;
 use App\Models\Payout;
 use App\Models\PayoutRun;
+use App\Models\User;
 use App\Services\Payments\PaymentProvider;
 use App\Services\Payments\TransferResult;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 
 /**
@@ -65,31 +68,95 @@ class PayoutService
     {
         return DB::transaction(function () use ($instructorId, $run, $minimumMinor) {
             $amountMinor = $this->ledger->lockBalance($instructorId)->outstandingMinor();
+            $destination = User::whereKey($instructorId)->value('bank_account_number');
 
-            if ($amountMinor < $minimumMinor) {
+            if ($amountMinor < $minimumMinor || blank($destination)) {
                 return null;
             }
 
-            $payout = Payout::create([
-                'payout_run_id' => $run->id,
-                'instructor_id' => $instructorId,
-                'amount_minor' => $amountMinor,
-                'currency' => config('ledger.currency'),
-                'status' => PayoutStatus::Pending,
-                'idempotency_key' => 'payout-'.Str::uuid(),
-            ]);
-
-            $this->ledger->record(
-                instructorId: $instructorId,
-                type: LedgerEntryType::Payout,
-                amountMinor: -$amountMinor,
-                idempotencyKey: "payout:{$payout->id}",
-                occurredOn: CarbonImmutable::today(),
-                payoutId: $payout->id,
-            );
-
-            return $payout;
+            return $this->createReservation($instructorId, $amountMinor, $destination, $run);
         });
+    }
+
+    /**
+     * An instructor asks to be paid their whole outstanding balance now.
+     *
+     * Goes through the same balance lock as scheduled runs, so a withdrawal
+     * and a run can never both reserve the same money. With a request key,
+     * repeating the request (double tap, client retry) returns the payout
+     * created the first time instead of an error or a second payout.
+     *
+     * @return array{Payout, bool} the payout, and whether it was created by this call
+     *
+     * @throws ValidationException when there is nothing to withdraw or no payout destination
+     */
+    public function requestWithdrawal(User $instructor, ?string $requestKey = null): array
+    {
+        [$payout, $created] = DB::transaction(function () use ($instructor, $requestKey) {
+            $balance = $this->ledger->lockBalance($instructor->id);
+
+            if ($requestKey !== null) {
+                $existing = Payout::query()
+                    ->where('instructor_id', $instructor->id)
+                    ->where('withdrawal_request_key', $requestKey)
+                    ->first();
+
+                if ($existing) {
+                    return [$existing, false];
+                }
+            }
+
+            $destination = User::whereKey($instructor->id)->value('bank_account_number');
+
+            if (blank($destination)) {
+                throw ValidationException::withMessages(['bank_account_number' => 'Add payout details before withdrawing.']);
+            }
+
+            $minimumMinor = max(1, (int) config('ledger.minimum_payout_minor'));
+            $amountMinor = $balance->outstandingMinor();
+
+            if ($amountMinor < $minimumMinor) {
+                throw ValidationException::withMessages([
+                    'amount' => "Outstanding balance {$amountMinor} is below the minimum withdrawal of {$minimumMinor}.",
+                ]);
+            }
+
+            return [$this->createReservation($instructor->id, $amountMinor, $destination, requestKey: $requestKey), true];
+        });
+
+        if ($created) {
+            SendPayoutJob::dispatch($payout->id);
+        }
+
+        return [$payout, $created];
+    }
+
+    /**
+     * Must run inside the transaction holding the instructor's balance lock.
+     */
+    private function createReservation(int $instructorId, int $amountMinor, string $destination, ?PayoutRun $run = null, ?string $requestKey = null): Payout
+    {
+        $payout = Payout::create([
+            'payout_run_id' => $run?->id,
+            'instructor_id' => $instructorId,
+            'amount_minor' => $amountMinor,
+            'currency' => config('ledger.currency'),
+            'destination_account' => $destination,
+            'status' => PayoutStatus::Pending,
+            'idempotency_key' => 'payout-'.Str::uuid(),
+            'withdrawal_request_key' => $requestKey,
+        ]);
+
+        $this->ledger->record(
+            instructorId: $instructorId,
+            type: LedgerEntryType::Payout,
+            amountMinor: -$amountMinor,
+            idempotencyKey: "payout:{$payout->id}",
+            occurredOn: CarbonImmutable::today(),
+            payoutId: $payout->id,
+        );
+
+        return $payout;
     }
 
     /**
@@ -112,12 +179,12 @@ class PayoutService
             return;
         }
 
-        $payout = Payout::with('instructor')->findOrFail($payoutId);
+        $payout = Payout::findOrFail($payoutId);
 
         try {
             $result = $this->provider->transfer(
                 $payout->idempotency_key,
-                (string) $payout->instructor->bank_account_number,
+                $payout->destination_account,
                 $payout->amount_minor,
                 $payout->currency,
             );

@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\PayoutStatus;
+use Database\Factories\PayoutFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,11 +16,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $idempotency_key
  */
 #[Fillable([
-    'payout_run_id', 'instructor_id', 'amount_minor', 'currency', 'status', 'idempotency_key',
+    'payout_run_id', 'instructor_id', 'amount_minor', 'currency', 'destination_account', 'status',
+    'idempotency_key', 'withdrawal_request_key',
     'provider_reference', 'attempts', 'last_error', 'sent_at', 'settled_at',
 ])]
 class Payout extends Model
 {
+    /** @use HasFactory<PayoutFactory> */
+    use HasFactory;
+
     protected function casts(): array
     {
         return [

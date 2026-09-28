@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use Database\Factories\InstructorBalanceFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -17,6 +19,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[Fillable(['instructor_id', 'earned_minor', 'reserved_minor', 'paid_minor'])]
 class InstructorBalance extends Model
 {
+    /** @use HasFactory<InstructorBalanceFactory> */
+    use HasFactory;
+
     protected $attributes = [
         'earned_minor' => 0,
         'reserved_minor' => 0,

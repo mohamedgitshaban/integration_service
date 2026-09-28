@@ -37,13 +37,13 @@ class MockPaymentProvider implements PaymentProvider
 
         return match ($this->nextOutcome()) {
             MockTransferOutcome::Success => $this->toResult(
-                $this->store($idempotencyKey, TransferStatus::Succeeded, $amountMinor, visibleAt: now()->getTimestamp()),
+                $this->store($idempotencyKey, TransferStatus::Succeeded, $amountMinor, $destination, visibleAt: now()->getTimestamp()),
             ),
             MockTransferOutcome::PermanentFailure => $this->toResult(
-                $this->store($idempotencyKey, TransferStatus::Failed, 0, visibleAt: now()->getTimestamp(), message: 'Beneficiary account closed.'),
+                $this->store($idempotencyKey, TransferStatus::Failed, 0, $destination, visibleAt: now()->getTimestamp(), message: 'Beneficiary account closed.'),
             ),
             MockTransferOutcome::TimeoutAfterSuccess => $this->timeoutAfter(
-                fn () => $this->store($idempotencyKey, TransferStatus::Succeeded, $amountMinor, visibleAt: now()->getTimestamp() + $this->confirmationDelaySeconds()),
+                fn () => $this->store($idempotencyKey, TransferStatus::Succeeded, $amountMinor, $destination, visibleAt: now()->getTimestamp() + $this->confirmationDelaySeconds()),
             ),
             MockTransferOutcome::TimeoutBeforeSuccess => $this->timeoutAfter(fn () => null),
         };
@@ -88,6 +88,14 @@ class MockPaymentProvider implements PaymentProvider
         return $record !== null && $record['status'] === TransferStatus::Succeeded->value ? $record['amount_minor'] : 0;
     }
 
+    /**
+     * The account a transfer with this key was sent to, if it reached the provider.
+     */
+    public function destinationFor(string $idempotencyKey): ?string
+    {
+        return $this->record($idempotencyKey)['destination'] ?? null;
+    }
+
     private function nextOutcome(): MockTransferOutcome
     {
         if ($this->scriptedOutcomes !== []) {
@@ -118,14 +126,15 @@ class MockPaymentProvider implements PaymentProvider
     }
 
     /**
-     * @return array{status: string, reference: string|null, amount_minor: int, visible_at: int, message: string|null}
+     * @return array{status: string, reference: string|null, amount_minor: int, destination: string, visible_at: int, message: string|null}
      */
-    private function store(string $idempotencyKey, TransferStatus $status, int $amountMinor, int $visibleAt, ?string $message = null): array
+    private function store(string $idempotencyKey, TransferStatus $status, int $amountMinor, string $destination, int $visibleAt, ?string $message = null): array
     {
         $record = [
             'status' => $status->value,
             'reference' => $status === TransferStatus::Succeeded ? 'MOCK-'.Str::upper(Str::random(12)) : null,
             'amount_minor' => $amountMinor,
+            'destination' => $destination,
             'visible_at' => $visibleAt,
             'message' => $message,
         ];
@@ -136,7 +145,7 @@ class MockPaymentProvider implements PaymentProvider
     }
 
     /**
-     * @return array{status: string, reference: string|null, amount_minor: int, visible_at: int, message: string|null}|null
+     * @return array{status: string, reference: string|null, amount_minor: int, destination: string, visible_at: int, message: string|null}|null
      */
     private function record(string $idempotencyKey): ?array
     {

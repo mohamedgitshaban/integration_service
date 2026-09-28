@@ -29,6 +29,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Plan Prices
+    |--------------------------------------------------------------------------
+    |
+    | What a student pays up front for each plan, in minor units. Prices are
+    | always taken from here, never from the client.
+    |
+    */
+
+    'plan_prices_minor' => [
+        'monthly' => (int) env('LEDGER_PRICE_MONTHLY_MINOR', 29_900),
+        'quarterly' => (int) env('LEDGER_PRICE_QUARTERLY_MINOR', 79_900),
+        'annual' => (int) env('LEDGER_PRICE_ANNUAL_MINOR', 299_900),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Payouts
     |--------------------------------------------------------------------------
     |

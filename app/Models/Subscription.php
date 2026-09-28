@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property int|null $refund_amount_minor
  */
 #[Fillable([
-    'user_id', 'plan', 'amount_minor', 'currency', 'platform_share_bps', 'starts_on', 'ends_on',
+    'user_id', 'plan', 'amount_minor', 'currency', 'payment_reference', 'platform_share_bps', 'starts_on', 'ends_on',
     'term_days', 'service_ends_on', 'recognized_through', 'status', 'refunded_on', 'refund_amount_minor',
 ])]
 class Subscription extends Model

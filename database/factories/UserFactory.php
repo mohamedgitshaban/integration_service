@@ -35,6 +35,26 @@ class UserFactory extends Factory
     }
 
     /**
+     * A platform administrator (can open the Filament panel).
+     */
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'admin',
+        ]);
+    }
+
+    /**
+     * A student (the default role, stated explicitly for readability).
+     */
+    public function student(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'student',
+        ]);
+    }
+
+    /**
      * An instructor with a payout destination on file.
      */
     public function instructor(): static

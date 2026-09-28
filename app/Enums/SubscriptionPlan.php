@@ -20,6 +20,14 @@ enum SubscriptionPlan: string
     }
 
     /**
+     * The up-front price in minor units, from config.
+     */
+    public function priceMinor(): int
+    {
+        return (int) config("ledger.plan_prices_minor.{$this->value}");
+    }
+
+    /**
      * The last day of service (inclusive) for a term starting on the given day.
      * Uses calendar months without overflow: a monthly plan from Jan 31 renews
      * on Feb 28, so its last day of service is Feb 27.

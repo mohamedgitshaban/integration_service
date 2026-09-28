@@ -17,6 +17,8 @@ return new class extends Migration
      * service_ends_on is ends_on, or the day before a refund took effect.
      * recognized_through is the allocation cursor: the last day already
      * turned into instructor earnings (starts_on - 1 when nothing is yet).
+     * payment_reference is the checkout provider's id for the charge; unique,
+     * so replaying the same payment can never create a second subscription.
      */
     public function up(): void
     {
@@ -26,6 +28,7 @@ return new class extends Migration
             $table->string('plan');
             $table->unsignedBigInteger('amount_minor');
             $table->char('currency', 3)->default('EGP');
+            $table->string('payment_reference')->unique();
             $table->unsignedSmallInteger('platform_share_bps');
             $table->date('starts_on');
             $table->date('ends_on');

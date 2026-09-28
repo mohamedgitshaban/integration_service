@@ -8,6 +8,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Str;
 
 /**
  * @extends Factory<Subscription>
@@ -25,6 +26,7 @@ class SubscriptionFactory extends Factory
             'user_id' => User::factory(),
             'amount_minor' => 29_900,
             'currency' => 'EGP',
+            'payment_reference' => 'pay_'.Str::uuid(),
             'status' => SubscriptionStatus::Active,
             ...$this->termAttributes(SubscriptionPlan::Monthly, CarbonImmutable::today()),
         ];
