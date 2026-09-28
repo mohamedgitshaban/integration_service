@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Database\Factories\UserFactory;
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,16 +12,36 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['name', 'email', 'password', 'role', 'bank_account_number', 'vodafone_cash_number'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements FilamentUser
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected static function newFactory(): UserFactory
     {
         return UserFactory::new();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    /**
+     * Only platform admins may open the Filament panel.
+     */
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return $this->role === 'admin';
     }
 
     // --- Relationships ---
@@ -41,11 +63,11 @@ class User extends Authenticatable
     }
 
     /**
-     * Earnings accrued by this instructor.
+     * Ledger movements (earnings, clawbacks, payouts) for this instructor.
      */
-    public function earnings(): HasMany
+    public function ledgerEntries(): HasMany
     {
-        return $this->hasMany(InstructorEarning::class, 'instructor_id');
+        return $this->hasMany(LedgerEntry::class, 'instructor_id');
     }
 
     /**
@@ -57,10 +79,10 @@ class User extends Authenticatable
     }
 
     /**
-     * Payout transactions sent to this instructor.
+     * Payouts sent to this instructor.
      */
-    public function payoutTransactions(): HasMany
+    public function payouts(): HasMany
     {
-        return $this->hasMany(PayoutTransaction::class, 'instructor_id');
+        return $this->hasMany(Payout::class, 'instructor_id');
     }
 }
