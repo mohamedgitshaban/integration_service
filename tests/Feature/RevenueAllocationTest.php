@@ -3,8 +3,6 @@
 namespace Tests\Feature;
 
 use App\Enums\SubscriptionPlan;
-use App\Models\Course;
-use App\Models\InstructorBalance;
 use App\Models\LedgerEntry;
 use App\Models\RevenueAllocation;
 use App\Models\Subscription;
@@ -12,11 +10,12 @@ use App\Models\User;
 use App\Services\RevenueAllocationService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\BuildsLedgerScenarios;
 use Tests\TestCase;
 
 class RevenueAllocationTest extends TestCase
 {
-    use RefreshDatabase;
+    use BuildsLedgerScenarios, RefreshDatabase;
 
     private RevenueAllocationService $allocator;
 
@@ -165,36 +164,5 @@ class RevenueAllocationTest extends TestCase
         $this->assertSame(7_000 + 4_200, $this->balance($instructor)->earned_minor);
         $this->assertSame(2, LedgerEntry::count());
         $this->assertBalanceMatchesLedger($instructor);
-    }
-
-    /**
-     * @param  array{User, int}  ...$instructorCourses  instructor and how many of their courses the student takes
-     */
-    private function subscription(SubscriptionPlan $plan, string $startsOn, int $amountMinor, array ...$instructorCourses): Subscription
-    {
-        $subscription = Subscription::factory()
-            ->plan($plan, CarbonImmutable::parse($startsOn), $amountMinor)
-            ->create();
-
-        foreach ($instructorCourses as [$instructor, $courseCount]) {
-            $subscription->courses()->attach(
-                Course::factory()->count($courseCount)->for($instructor, 'instructor')->create()
-            );
-        }
-
-        return $subscription;
-    }
-
-    private function balance(User $instructor): InstructorBalance
-    {
-        return InstructorBalance::where('instructor_id', $instructor->id)->sole();
-    }
-
-    private function assertBalanceMatchesLedger(User $instructor): void
-    {
-        $this->assertSame(
-            (int) LedgerEntry::where('instructor_id', $instructor->id)->sum('amount_minor'),
-            $this->balance($instructor)->outstandingMinor(),
-        );
     }
 }

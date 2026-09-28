@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\SubscriptionPlan;
 use App\Enums\SubscriptionStatus;
+use App\Support\RevenueMath;
 use Carbon\CarbonImmutable;
 use Database\Factories\SubscriptionFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -76,6 +77,17 @@ class Subscription extends Model
     public function allocations(): HasMany
     {
         return $this->hasMany(RevenueAllocation::class);
+    }
+
+    /**
+     * Cumulative revenue earned from the start of the term through $day
+     * (zero before the start, the full amount from the last day onwards).
+     */
+    public function earnedThroughMinor(CarbonImmutable $day): int
+    {
+        $daysServed = (int) $this->starts_on->diffInDays($day->startOfDay(), false) + 1;
+
+        return RevenueMath::earnedAfterDays($this->amount_minor, $this->term_days, $daysServed);
     }
 
     /**

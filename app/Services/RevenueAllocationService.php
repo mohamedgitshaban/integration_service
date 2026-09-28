@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\AllocationKind;
 use App\Enums\LedgerEntryType;
 use App\Models\Course;
 use App\Models\RevenueAllocation;
@@ -42,8 +43,8 @@ class RevenueAllocationService
                 return null;
             }
 
-            $earnedBefore = $this->earnedThrough($subscription, $periodStart->subDay());
-            $earnedAfter = $this->earnedThrough($subscription, $periodEnd);
+            $earnedBefore = $subscription->earnedThroughMinor($periodStart->subDay());
+            $earnedAfter = $subscription->earnedThroughMinor($periodEnd);
 
             $grossMinor = $earnedAfter - $earnedBefore;
             $platformMinor = RevenueMath::platformCut($earnedAfter, $subscription->platform_share_bps)
@@ -59,6 +60,7 @@ class RevenueAllocationService
 
             $allocation = RevenueAllocation::create([
                 'subscription_id' => $subscription->id,
+                'kind' => AllocationKind::Recognition,
                 'period_start' => $periodStart,
                 'period_end' => $periodEnd,
                 'gross_minor' => $grossMinor,
@@ -85,16 +87,6 @@ class RevenueAllocationService
 
             return $allocation;
         });
-    }
-
-    /**
-     * Cumulative revenue earned from the start of the term through $day.
-     */
-    private function earnedThrough(Subscription $subscription, CarbonImmutable $day): int
-    {
-        $daysServed = (int) $subscription->starts_on->diffInDays($day, false) + 1;
-
-        return RevenueMath::earnedAfterDays($subscription->amount_minor, $subscription->term_days, $daysServed);
     }
 
     /**

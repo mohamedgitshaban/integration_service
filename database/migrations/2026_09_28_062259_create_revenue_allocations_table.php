@@ -9,8 +9,9 @@ return new class extends Migration
     /**
      * Run the migrations.
      *
-     * One row per recognition run of a subscription, covering the days
-     * [period_start, period_end]. gross = platform + instructor pool, always.
+     * One row per recognition (or reversal) of a subscription, covering the
+     * days [period_start, period_end]. gross = platform + instructor pool,
+     * always; amounts are positive and `kind` gives the direction.
      * The unique key makes re-running allocation for the same period a no-op.
      */
     public function up(): void
@@ -18,6 +19,7 @@ return new class extends Migration
         Schema::create('revenue_allocations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('subscription_id')->constrained()->restrictOnDelete();
+            $table->string('kind')->default('recognition');
             $table->date('period_start');
             $table->date('period_end');
             $table->unsignedBigInteger('gross_minor');
@@ -25,7 +27,7 @@ return new class extends Migration
             $table->unsignedBigInteger('instructor_pool_minor');
             $table->timestamps();
 
-            $table->unique(['subscription_id', 'period_start']);
+            $table->unique(['subscription_id', 'kind', 'period_start']);
         });
     }
 

@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\AllocationKind;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
-    'subscription_id', 'period_start', 'period_end',
+    'subscription_id', 'kind', 'period_start', 'period_end',
     'gross_minor', 'platform_minor', 'instructor_pool_minor',
 ])]
 class RevenueAllocation extends Model
@@ -16,6 +17,7 @@ class RevenueAllocation extends Model
     protected function casts(): array
     {
         return [
+            'kind' => AllocationKind::class,
             'period_start' => 'immutable_date',
             'period_end' => 'immutable_date',
             'gross_minor' => 'integer',
